@@ -1,0 +1,122 @@
+<script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
+<div id="chat-container">
+  <ul id="chat-messages"><li>Loading...</li></ul>
+  <textarea id="chat-input" placeholder="Enter a message and hit send..."></textarea>
+  <input id="chat-send" type="button" value="GO" />
+</div>
+
+<script>
+  var chatListTitle = "Discussion";
+
+  function loadMessages(callback) {
+    var loadMessagesUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/Web/Lists/GetByTitle('" + chatListTitle + "')/items";
+    loadMessagesUrl += "?$select=Title,Message,Author/Title,Author/ID,Created";
+    loadMessagesUrl += "&$expand=Author";
+    loadMessagesUrl += "&$orderby=Created";
+
+    $.ajax({
+      url: loadMessagesUrl,
+      method: "GET",
+      dataType: "json",
+      headers: {
+        Accept: "application/json;odata=verbose"
+      }
+    }).then(function(data) {
+      if (data && data.d && data.d.results) {
+        var html = data.d.results.map(function(messageItem){
+          var createdDate = new Date(messageItem.Created);
+          var authorLink = _spPageContextInfo.webAbsoluteUrl + "/_layouts/15/userdisp.aspx?ID=" + messageItem.Author.ID;
+          var messageHtml = "<li class='chat-message'>";
+          messageHtml += "<div class='chat-message-text'>" + messageItem.Message + "</div>";
+          messageHtml += "<div class='chat-message-author'>by <a href='" + authorLink + "'>" + messageItem.Author.Title + "</a> at " + createdDate.toLocaleTimeString() + " on " + createdDate.toLocaleDateString() + "</div>";
+          messageHtml += "</li>";
+          return messageHtml;
+        }).join("");
+        var $chatMessages = $("#chat-messages");
+        $chatMessages.html(html);
+        $chatMessages.scrollTop($chatMessages.height())
+        callback();
+      }
+    }).fail(function(error) {
+      console.log(error);
+      alert("ERROR: loadMessages(): " + error);
+    });
+  }
+
+  function addMessage(messageText, callback) {
+    var addMessageUrl = _spPageContextInfo.webAbsoluteUrl + "/_api/Web/Lists/GetByTitle('" + chatListTitle + "')/items";
+    var digestToken = $('#__REQUESTDIGEST').val();
+
+    $.ajax({
+      url: addMessageUrl,
+      type: 'POST',
+      data: JSON.stringify({
+        "__metadata": { 
+          "type": "SP.Data." + chatListTitle + "ListItem"
+        },
+        Title: "Chat Message",
+        Message: messageText,
+      }),
+      headers: {
+        Accept: "application/json;odata=verbose",
+        "Content-Type": "application/json;odata=verbose",
+        "X-RequestDigest": digestToken
+      }
+    }).then(function(result) {
+      loadMessages(callback);
+    }).fail(function(error) {
+      console.log(error);
+      alert("ERROR: addMessage(): " + error);
+    })
+  }
+
+  function onAddMessage() {
+    $("#chat-send").attr("disabled", "disabled");
+    var chatMessage = $("#chat-input").val();
+    addMessage(chatMessage, function() {
+      $("#chat-input").val("");
+      $("#chat-send").removeAttr("disabled");
+    })
+  }
+
+  $("#chat-send").on("click", onAddMessage);
+  loadMessages();
+</script>
+
+<style>
+    #chat-container {
+      width: 600px;
+    }
+  
+    ul#chat-messages {
+      padding: 0;
+      list-style: none;
+      max-height: 300px;
+      overflow-y: scroll;
+    }
+  
+    li.chat-message {
+      border: 1px solid #ddd;
+      padding: 8px;
+      margin-bottom: 5px;
+    }
+  
+    li.chat-message .chat-message-author {
+      padding-left: 10px;
+      color: #888;
+      font-size: 0.9em;
+    }
+  
+    #chat-input {
+      width: 85%;
+      box-sizing: border-box;    
+      min-height: 40px;
+    }
+  
+    #chat-send {
+      width: 13%;
+      box-sizing: border-box;
+      height: 40px;
+      float: right;
+    }
+  </style>
